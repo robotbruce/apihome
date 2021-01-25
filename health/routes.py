@@ -4,18 +4,23 @@ Created on Tue Jan  5 16:13:45 2021
 
 @author: bruceyu1113
 """
-
-
 from flask import jsonify,request,Blueprint
 from datetime import datetime,date,timedelta
 import pandas as pd
+import pymysql
 import sys
 import os
 import requests
-path1 = "C:/Users/bruceyu1113/code/API/version/api"
+import numpy as np
+
+path1 = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, path1)
 from cache import cache
-
+import read_gzip
+import db_config
+import tag_recom_algorithm as tra
+import articleRecomTag as tagrec
+from df_to_json import dataframe_to_json
 path2 = "C:/Users/Public/version_control/code/mart"
 sys.path.insert(0, path2)
 from Tag_NewContent import get_data
@@ -26,6 +31,9 @@ os.chdir(path2.replace('code','query')+'\\Tag_NewContent')
 ##宣告Blueprint route名稱##
 health = Blueprint('health',__name__,url_prefix='/health')
 ##
+
+mysql = db_config.mysql
+
 
 @health.route('/health')
 def getdata():
@@ -56,6 +64,140 @@ def content():
         filt_tmp = filt_tmp.drop(['date'], axis=1)
         filt = filt_tmp.to_json(force_ascii=False)
         return filt
+
+@health.route('/article_cache', methods=['GET'])##後台文章API
+def health_article_cache():
+    args = request.args
+#            now = datetime.now()
+    hour = datetime.now().hour
+    minute = datetime.now().minute
+    day = args.get('day') if 'day' in args else 90
+    health_table = cache.get('health_cache_'+str(day))
+    if day ==90:
+        if not health_table or \
+        ((hour>0 and minute > 0) and (hour>0 and minute <= 1)) or ((hour>6 and minute > 0) and (hour>6 and minute <= 1)) or \
+        ((hour>8 and minute > 0) and (hour>8 and minute <= 1)) or ((hour>10 and minute > 0) and (hour>10 and minute <= 1)) or \
+        ((hour>12 and minute > 0) and (hour>12 and minute <= 1)) or ((hour>14 and minute > 0) and (hour>14 and minute <= 1)) or \
+        ((hour>16 and minute > 0) and (hour>16 and minute <= 1)) or ((hour>18 and minute > 0) and (hour>18 and minute <= 1)) or \
+        ((hour>20 and minute > 0) and (hour>20 and minute <= 1)) or ((hour>22 and minute > 0) and (hour>22 and minute <= 1)):
+#                if not news_table or(now_time >= time(00,0) and now_time <= time(00,2)) :
+            db_config.aws_db()
+            insert = """SELECT articles_id AS nid,
+                        title AS title,
+                        tag AS tag,
+                        cast(DATE(publish)as char) AS date
+                        FROM tvbs_v4.health_articles
+                        WHERE DATE(publish) >= SUBDATE(CURDATE(), INTERVAL 90 DAY)
+                        AND DATE(publish) <= CURDATE()
+                        AND articles_status = 1;"""
+            print('Not cache')
+            conn = mysql.connect()
+            cur = conn.cursor(pymysql.cursors.DictCursor)
+            cur.execute(insert)
+            rows = cur.fetchall()
+            health_table=jsonify(rows)
+            health_table.status_code=200
+            cache.set('health_cache_'+str(day),health_table,timeout=7200)
+            cur.close()
+            conn.close()
+            return health_table
+        else:
+            print('the day is 90 and health_caches')
+            return health_table
+    else:
+        if not health_table:
+            print('Not cache')
+            db_config.aws_db()
+            insert = """SELECT articles_id AS nid,
+                        title AS title,
+                        tag AS tag,
+                        cast(DATE(publish)as char) AS date
+                        FROM tvbs_v4.health_articles
+                        WHERE DATE(publish) >= SUBDATE(CURDATE(), INTERVAL %s DAY)
+                        AND DATE(publish) <= CURDATE()
+                        AND articles_status = 1;""" % (day)
+            conn = mysql.connect()
+            cur = conn.cursor(pymysql.cursors.DictCursor)
+            cur.execute(insert)
+            rows = cur.fetchall()
+            health_table=jsonify(rows)
+            health_table.status_code=200
+            cache.set('health_cache_'+str(day),health_table,timeout=3600)
+            cur.close()
+            conn.close()
+            return health_table
+        else:
+            print('health_cache')
+            return health_table
+
+
+@health.route('/tag_score_table', methods=['GET'])##News 標籤推薦API
+#    @cache.cached(timeout=5)
+def tvbs_news_tag_analysis():
+    hour = datetime.now().hour
+    minute = datetime.now().minute
+#    args = request.args
+    search_console = request.args.get('gsc', 'Y', type = str)
+    day = request.args.get('day',90 , type = int)
+    news_tag_summary = cache.get('health_tag_cache'+str(day)+search_console)
+    try:
+        if (not news_tag_summary) or\
+            ((hour>0 and minute > 0) and (hour>0 and minute <= 1)) or ((hour>6 and minute > 0) and (hour>6 and minute <= 1)) or \
+            ((hour>8 and minute > 0) and (hour>8 and minute <= 1)) or ((hour>10 and minute > 0) and (hour>10 and minute <= 1)) or \
+            ((hour>12 and minute > 0) and (hour>12 and minute <= 1)) or ((hour>14 and minute > 0) and (hour>14 and minute <= 1)) or \
+            ((hour>16 and minute > 0) and (hour>16 and minute <= 1)) or ((hour>18 and minute > 0) and (hour>18 and minute <= 1)) or \
+            ((hour>20 and minute > 0) and (hour>20 and minute <= 1)) or ((hour>22 and minute > 0) and (hour>22 and minute <= 1)):
+#            if (not news_tag_summary):
+            print('Not cache')
+            back_tag_of_dfItem = tra.cache_article_table('health').get_aws_table_cache(day)
+            if search_console =='Y':
+                tag_summary = tra.editorTag('health',back_tag_of_dfItem,'Y').editor_tag_summary()
+            else:
+                tag_summary = tra.editorTag('health',back_tag_of_dfItem,'N').editor_tag_summary()
+            summary_list = dataframe_to_json(tag_summary)
+            news_tag_summary = jsonify(summary_list)
+            news_tag_summary.status_code=200
+            cache.set('health_tag_cache'+str(day)+search_console,news_tag_summary,timeout=7200)
+            return news_tag_summary
+        else:
+            print('health_tag_cache')
+            return news_tag_summary
+    finally:
+        print('request get /tvbs_health_tag_analysis')
+        
+@health.route('/google_scarch_console_tag',methods =['GET'])
+def gsc_tag():
+    hour = datetime.now().hour
+    minute = datetime.now().minute
+    gsc_table = cache.get('health_tag_cache')
+    if not gsc_table or \
+        ((hour>0 and minute > 0) and (hour>0 and minute <= 1)) or ((hour>6 and minute > 0) and (hour>6 and minute <= 1)) or \
+        ((hour>8 and minute > 0) and (hour>8 and minute <= 1)) or ((hour>10 and minute > 0) and (hour>10 and minute <= 1)) or \
+        ((hour>12 and minute > 0) and (hour>12 and minute <= 1)) or ((hour>14 and minute > 0) and (hour>14 and minute <= 1)) or \
+        ((hour>16 and minute > 0) and (hour>16 and minute <= 1)) or ((hour>18 and minute > 0) and (hour>18 and minute <= 1)) or \
+        ((hour>20 and minute > 0) and (hour>20 and minute <= 1)) or ((hour>22 and minute > 0) and (hour>22 and minute <= 1)):
+        tag_gsc = read_gzip.tmp_read('dict')
+        tag_gsc['search_content'] = tag_gsc["search_content"].map(lambda tag: tag.replace(' ',','))
+        tag_gsc['search_content'].replace('', np.nan, inplace=True)
+        tag_gsc = tag_gsc.dropna(how = 'all')
+        tag_gsc = tag_gsc.reset_index().rename(columns={tag_gsc.index.name:'nid'})
+        gsc_list = dataframe_to_json(tag_gsc)
+        gsc_table = jsonify(gsc_list)
+        gsc_table.status_code=200
+        cache.set('health_tag_cache',gsc_table,timeout=7200)
+        return gsc_table
+    else:
+        print('health_tag_cache')
+        return gsc_table
+        
+
+@health.route('/post_tag_recommend',methods=['POST'])##News 推薦文章API
+def tvbs_tag_recommend():
+    result={}
+    temp_json  = request.get_json(force=True)
+    tag_recommentTop20 = tagrec.get_tag_recommend('health',temp_json['article'],'Y')
+    result = {'recomment_tag':tag_recommentTop20}
+    return jsonify(result)
 
 @health.route('/tags', methods=['GET'])
 def tags():

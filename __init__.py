@@ -48,7 +48,7 @@ def create_app():
             curr_user.username = username
         return curr_user
     
-#    from health.routes import health
+    from health.routes import health
     from supertaste.routes import supertaste
     from news.routes import news
     from line.routes import lineapi
@@ -59,7 +59,7 @@ def create_app():
     from furrydownload.furry_download import furry_download
     from furrydownload.auth import furry_auth
     
-#    app.register_blueprint(health)
+    app.register_blueprint(health)
     app.register_blueprint(supertaste)
     app.register_blueprint(news)
     app.register_blueprint(lineapi)
@@ -76,5 +76,5 @@ def create_app():
 if __name__ == '__main__':
     # from flask_cache import Cache
     app = create_app()
-    app.run(host="0.0.0.0",port=50,debug=True, use_reloader=False)
+    app.run(host="0.0.0.0",port=5050,debug=True, use_reloader=False)
 

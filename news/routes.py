@@ -7,17 +7,18 @@ Created on Tue Jan  5 16:13:45 2021
 import pymysql
 import sys
 import requests
+import os
 #import numpy as np
 from flask import Blueprint,request,jsonify
 from datetime import datetime
-path = "C:/Users/bruceyu1113/code/API/version/api"
+path = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, path)
 from cache import cache
 from df_to_json import dataframe_to_json
 import db_config
 import update_News_Recommend_last1
 import tag_recom_algorithm as tra
-import news_articleRecomTag as newsTagRec
+import articleRecomTag as tagrec
 
 
 #from recom.cache import cache
@@ -60,7 +61,7 @@ def test_db():
     return(news_table)
 # =============================================================================   
 #    
-@news.route('/aws-news-api-server', methods=['GET'])##後台文章API
+@news.route('/article_cache', methods=['GET'])##後台文章API
 #@cache.cached(timeout=300)
 def aws_news_api():
     args = request.args
@@ -131,7 +132,7 @@ def aws_news_api():
             return news_table
 
 
-@news.route('/tvbs-news-tag-analysis', methods=['GET'])##News 標籤推薦API
+@news.route('/tag_score_table', methods=['GET'])##News 標籤推薦API
 #    @cache.cached(timeout=5)
 def tvbs_news_tag_analysis():
     hour = datetime.now().hour
@@ -148,7 +149,7 @@ def tvbs_news_tag_analysis():
             ((hour>20 and minute > 0) and (hour>20 and minute <= 1)) or ((hour>22 and minute > 0) and (hour>22 and minute <= 1)):
 #            if (not news_tag_summary):
             print('Not cache')
-            back_tag_of_dfItem = tra.get_tvbs_Tagdata(day)
+            back_tag_of_dfItem = tra.cache_article_table('news').get_aws_table_cache(day)
             tag_summary = tra.editorTag(back_tag_of_dfItem).editor_tag_summary()
             summary_list = dataframe_to_json(tag_summary)
             news_tag_summary = jsonify(summary_list)
@@ -228,7 +229,10 @@ def tvbs_news_recommend():
 def tvbs_news_tag_recommend():
     result={}
     temp_json  = request.get_json(force=True)
-    tag_recommentTop20 = newsTagRec.get_tag_recommend(temp_json['article'])
+    
+#    tag_recommentTop20 = newsTagRec.get_tag_recommend(temp_json['article'])
+    tag_recommentTop20 = tagrec.get_tag_recommend('news',temp_json['article'])
+    
     result = {'recomment_tag':tag_recommentTop20}
     return jsonify(result)
     
