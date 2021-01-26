@@ -150,7 +150,7 @@ def tvbs_news_tag_analysis():
 #            if (not news_tag_summary):
             print('Not cache')
             back_tag_of_dfItem = tra.cache_article_table('news').get_aws_table_cache(day)
-            tag_summary = tra.editorTag(back_tag_of_dfItem).editor_tag_summary()
+            tag_summary = tra.editorTag('news',back_tag_of_dfItem,'N').editor_tag_summary()
             summary_list = dataframe_to_json(tag_summary)
             news_tag_summary = jsonify(summary_list)
             news_tag_summary.status_code=200
@@ -229,10 +229,8 @@ def tvbs_news_recommend():
 def tvbs_news_tag_recommend():
     result={}
     temp_json  = request.get_json(force=True)
-    
 #    tag_recommentTop20 = newsTagRec.get_tag_recommend(temp_json['article'])
-    tag_recommentTop20 = tagrec.get_tag_recommend('news',temp_json['article'])
-    
+    tag_recommentTop20 = tagrec.get_tag_recommend('news',temp_json['article'],'N')
     result = {'recomment_tag':tag_recommentTop20}
     return jsonify(result)
     

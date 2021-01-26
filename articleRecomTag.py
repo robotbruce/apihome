@@ -30,7 +30,7 @@ def make_score(DFITEM):
     dfItem.sort_values(by=['score'],ascending=False,inplace=True)
     return(dfItem)
 
-def get_tag_recommend(domain,ARTICLE,GSC):
+def get_tag_recommend(domain,ARTICLE,GSC = 'N'):
     article = ARTICLE
     gsc = GSC
     dfItem = cache_tag_table(domain,gsc).get_table()
