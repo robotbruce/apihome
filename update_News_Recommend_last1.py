@@ -43,7 +43,7 @@ def get_new_record(nid, get_type, title, tag, summary, date):
 
 def request_aws_news_api():
     
-    request_url = 'http://34.80.91.60:8090/aws-news-api-server?day=91'
+    request_url = 'http://34.80.91.60:5050/news/article_cache?day=91'
     aws_news_api = requests.get(request_url, verify = False)
     aws_news_api_lt = aws_news_api.json()
     rd0 = pd.DataFrame(aws_news_api_lt)
@@ -59,6 +59,7 @@ def prepare_raw_data(rd0, new_record):
     new_record_p = new_record
     
     rd = rd0_p.loc[:, ['nid', 'get_type', 'title', 'tag', 'summary', 'date']].copy()
+    rd = rd[rd['nid'] != new_record_p.loc[0, 'nid']]
     rd = rd.append(new_record_p)
     
     rd = rd[(rd['get_type'] != 8)]

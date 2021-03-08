@@ -19,6 +19,7 @@ import db_config
 import update_News_Recommend_last1
 import tag_recom_algorithm as tra
 import articleRecomTag as tagrec
+import pandas as pd
 
 
 #from recom.cache import cache
@@ -50,7 +51,7 @@ def test_db():
            FROM tvbs_news_v4.news_v4
             WHERE DATE(news_published_date) >= SUBDATE(CURDATE(), INTERVAL 1 DAY)
         	AND DATE(news_published_date) <= CURDATE()
-        	AND news_status = 1;"""
+        	AND news_status = 1 AND news_get_type != 8 AND news_id not in (select news_id FROM tvbs_news_v4.news_v4_category_mapping where news_category_id=14);"""
     conn = mysql.connect()
     cur = conn.cursor(pymysql.cursors.DictCursor)
     cur.execute(insert)
@@ -88,7 +89,7 @@ def aws_news_api():
                        FROM tvbs_news_v4.news_v4
                         WHERE DATE(news_published_date) >= SUBDATE(CURDATE(), INTERVAL 90 DAY)
                     	AND DATE(news_published_date) <= CURDATE()
-                    	AND news_status = 1;"""
+                    	AND news_get_type != 8 AND news_status = 1 AND news_id not in (select news_id FROM tvbs_news_v4.news_v4_category_mapping where news_category_id=14);"""
             print('Not cache')
             conn = mysql.connect()
             cur = conn.cursor(pymysql.cursors.DictCursor)
@@ -116,7 +117,7 @@ def aws_news_api():
                        FROM tvbs_news_v4.news_v4
                         WHERE DATE(news_published_date) >= SUBDATE(CURDATE(), INTERVAL %s DAY)
                     	AND DATE(news_published_date) <= CURDATE()
-                    	AND news_status = 1;""" % (day)
+                    	AND news_get_type != 8 AND news_status = 1 AND news_id not in (select news_id FROM tvbs_news_v4.news_v4_category_mapping where news_category_id=14);""" % (day)
             conn = mysql.connect()
             cur = conn.cursor(pymysql.cursors.DictCursor)
             cur.execute(insert)
@@ -233,7 +234,12 @@ def tvbs_news_tag_recommend():
     tag_recommentTop20 = tagrec.get_tag_recommend('news',temp_json['article'],'N')
     result = {'recomment_tag':tag_recommentTop20}
     return jsonify(result)
-    
+
+@news.route('/deleted_endpoint',methods=['POST'])##News 推薦文章API
+def delete_endpoint():
+    temp_json  = request.get_json(force=True)
+    return jsonify(temp_json)
+
 ##error message       
 @news.app_errorhandler(404)
 def not_found(e):
